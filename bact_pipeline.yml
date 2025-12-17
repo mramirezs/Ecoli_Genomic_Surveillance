@@ -1,0 +1,42 @@
+name: bact_pipeline
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # --- Base ---
+  - python=3.10
+  - pip
+  - pigz          # Compresión paralela (acelera gzip)
+  - openjdk=11    # Requerido por Unicycler/Trimmomatic
+
+  # --- Control de Calidad (QC) ---
+  - fastqc
+  - multiqc
+  - fastp         # Limpieza rápida para Illumina
+  - nanoplot      # QC para Nanopore
+  - filtlong      # Filtrado de lecturas Nanopore
+
+  # --- Mapeo y Manipulación ---
+  - bwa           # Alineador Illumina
+  - minimap2      # Alineador Nanopore
+  - samtools      # Manipulación de BAM/SAM
+  - bcftools      # Llamado de variantes (SNPs)
+  - bedtools      # Aritmética genómica
+
+  # --- Ensamblaje ---
+  - unicycler     # Ensamblador híbrido y optimizador
+  - flye          # Ensamblador de lecturas largas (Nanopore)
+  - spades        # Ensamblador de lecturas cortas (Illumina)
+  - bandage       # Visualización de grafos de ensamblaje
+  - quast         # Evaluación de calidad de ensamblajes
+
+  # --- Resistencia (AMR) y Anotación ---
+  - ncbi-amrfinderplus
+  - abricate
+  - rgi
+  - prokka
+  - barrnap
+  
+  # --- Utilidades ---
+  - blast
+  - entur
