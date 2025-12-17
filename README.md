@@ -268,15 +268,97 @@ abricate --list
 ```bash
 mamba activate bact_main
 
-# Ejecutar análisis de calidad
-fastqc 00_raw_data/illumina/*.fastq.gz -o 02_qc/illumina/
-multiqc 02_qc/illumina/ -o 02_qc/illumina/
+# 1. Análisis de calidad inicial (raw reads)
+mkdir -p 02_qc/illumina/raw 02_qc/illumina/trimmed 02_qc/nanopore
 
-# Ejecutar mapeo
-bwa mem 01_reference/ecoli_k12.fasta 00_raw_data/illumina/R1.fastq.gz 00_raw_data/illumina/R2.fastq.gz | samtools view -Sb - > 03_mapping/sample.bam
+# FastQC en datos crudos Illumina
+fastqc 00_raw_data/illumina/*.fastq.gz -o 02_qc/illumina/raw/ -t 8
 
-# Ejecutar ensamblaje
-spades.py -1 00_raw_data/illumina/R1.fastq.gz -2 00_raw_data/illumina/R2.fastq.gz -o 04_assembly/illumina_only/
+# NanoPlot para datos Nanopore (si aplica)
+NanoPlot --fastq 00_raw_data/nanopore/*.fastq.gz -o 02_qc/nanopore/ -t 8
+
+# 2. Limpieza y recorte de adaptadores con fastp (Illumina)
+fastp \
+  -i 00_raw_data/illumina/URO5550422_R1.fastq.gz \
+  -I 00_raw_data/illumina/URO5550422_R2.fastq.gz \
+  -o 02_qc/illumina/trimmed/URO5550422_R1_trimmed.fastq.gz \
+  -O 02_qc/illumina/trimmed/URO5550422_R2_trimmed.fastq.gz \
+  --detect_adapter_for_pe \
+  --cut_front --cut_tail \
+  --trim_poly_g \
+  --qualified_quality_phred 20 \
+  --unqualified_percent_limit 40 \
+  --n_base_limit 5 \
+  --length_required 50 \
+  --thread 8 \
+  --html 02_qc/illumina/trimmed/fastp_report.html \
+  --json 02_qc/illumina/trimmed/fastp_report.json
+
+# 3. FastQC en datos limpios
+fastqc 02_qc/illumina/trimmed/*.fastq.gz -o 02_qc/illumina/trimmed/ -t 8
+
+# 4. Reporte consolidado con MultiQC
+multiqc 02_qc/ -o 02_qc/ --filename multiqc_report_complete
+
+# 5. Filtrado de lecturas largas Nanopore (si aplica)
+filtlong \
+  --min_length 1000 \
+  --keep_percent 90 \
+  --target_bases 500000000 \
+  00_raw_data/nanopore/FRAN93.fastq.gz | \
+  pigz > 02_qc/nanopore/FRAN93_filtered.fastq.gz
+
+# 6. Ejecutar mapeo con lecturas limpias
+# Indexar genoma de referencia (solo primera vez)
+bwa index 01_reference/ecoli_k12.fasta
+
+# Mapeo de lecturas Illumina limpias
+bwa mem -t 8 \
+  01_reference/ecoli_k12.fasta \
+  02_qc/illumina/trimmed/URO5550422_R1_trimmed.fastq.gz \
+  02_qc/illumina/trimmed/URO5550422_R2_trimmed.fastq.gz | \
+  samtools view -Sb - | \
+  samtools sort -@ 8 -o 03_mapping/URO5550422_sorted.bam
+
+# Indexar BAM
+samtools index 03_mapping/URO5550422_sorted.bam
+
+# Mapeo de lecturas Nanopore (si aplica)
+minimap2 -ax map-ont -t 8 \
+  01_reference/ecoli_k12.fasta \
+  02_qc/nanopore/FRAN93_filtered.fastq.gz | \
+  samtools view -Sb - | \
+  samtools sort -@ 8 -o 03_mapping/FRAN93_sorted.bam
+
+samtools index 03_mapping/FRAN93_sorted.bam
+
+# 7. Estadísticas de mapeo
+samtools flagstat 03_mapping/URO5550422_sorted.bam > 03_mapping/URO5550422_flagstat.txt
+samtools coverage 03_mapping/URO5550422_sorted.bam > 03_mapping/URO5550422_coverage.txt
+
+# 8. Ejecutar ensamblaje con lecturas limpias
+# Ensamblaje solo Illumina con SPAdes
+spades.py \
+  -1 02_qc/illumina/trimmed/URO5550422_R1_trimmed.fastq.gz \
+  -2 02_qc/illumina/trimmed/URO5550422_R2_trimmed.fastq.gz \
+  -o 04_assembly/illumina_only/ \
+  --careful \
+  -t 8 -m 16
+
+# Ensamblaje solo Nanopore con Flye
+flye \
+  --nano-raw 02_qc/nanopore/FRAN93_filtered.fastq.gz \
+  --out-dir 04_assembly/nanopore_only/ \
+  --threads 8 \
+  --genome-size 5m
+
+# Evaluación de calidad de ensamblajes
+quast.py \
+  04_assembly/illumina_only/contigs.fasta \
+  04_assembly/nanopore_only/assembly.fasta \
+  -r 01_reference/ecoli_k12.fasta \
+  -o 04_assembly/quast_results/ \
+  --threads 8
 ```
 
 ### Para anotación genómica:
