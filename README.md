@@ -78,23 +78,23 @@ Este ambiente contiene todas las herramientas para control de calidad, mapeo, en
 
 ```bash
 # Crear ambiente base
-mamba create -n bact_main -c conda-forge -c bioconda -c defaults \
+conda create -n bact_main -c conda-forge -c bioconda -c defaults \
   python=3.10 pip pigz openjdk=11 -y
 
 # Activar ambiente
-mamba activate bact_main
+conda activate bact_main
 
 # Instalar herramientas de control de calidad
-mamba install fastqc multiqc fastp nanoplot filtlong -y
+conda install fastqc multiqc fastp nanoplot filtlong -y
 
 # Instalar herramientas de mapeo y análisis de variantes
-mamba install bwa minimap2 samtools bcftools bedtools blast -y
+conda install bwa minimap2 samtools bcftools bedtools blast -y
 
 # Instalar ensambladores
-mamba install unicycler flye spades quast bandage -y
+conda install unicycler flye spades quast bandage -y
 
 # Instalar herramientas AMR compatibles
-mamba install ncbi-amrfinderplus barrnap -y
+conda install ncbi-amrfinderplus barrnap -y
 
 # Configurar base de datos de AMRFinderPlus (primera vez)
 amrfinder_update --database 05_amr_screening/amrfinder_db
