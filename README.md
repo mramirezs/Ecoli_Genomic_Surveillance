@@ -681,3 +681,730 @@ ls -lh 00_raw_data/nanopore/
 # Salida esperada:
 # 00_raw_data/illumina/URO5550422_1.fastq.gz -> /ruta/real/URO5550422_1.fastq.gz
 # 00_raw_data/illumina/URO5
+
+# README.md - Parte 2: Flujo de Trabajo Completo
+
+## 🔬 Flujo de Trabajo Completo
+
+Esta sección documenta el pipeline paso a paso para el análisis de *Klebsiella pneumoniae* URO5550422.
+
+---
+
+## Fase 1: Preparación de Datos
+
+### 1.1 Verificar Estructura del Proyecto
+
+```bash
+# Verificar que la estructura esté creada
+tree -L 2 -d
+
+# Verificar genoma de referencia
+ls -lh 01_reference/
+
+# Verificar metadata
+cat 00_raw_data/sample_metadata.txt
+```
+
+### 1.2 Enlazar Datos de Secuenciación
+
+```bash
+# Enlazar datos desde ubicación original
+# IMPORTANTE: Illumina y Nanopore deben estar en directorios separados
+bash scripts/link_raw_data.sh /ruta/illumina /ruta/nanopore
+
+# Verificar enlaces simbólicos
+echo "=== Archivos Illumina ==="
+ls -lh 00_raw_data/illumina/
+
+echo "=== Archivos Nanopore ==="
+ls -lh 00_raw_data/nanopore/
+
+# Verificar tamaño de archivos
+du -sh 00_raw_data/illumina/*
+du -sh 00_raw_data/nanopore/*
+```
+
+**Salida esperada**:
+```
+=== Archivos Illumina ===
+lrwxrwxrwx URO5550422_1.fastq.gz -> /datos/illumina/URO5550422_1.fastq.gz
+lrwxrwxrwx URO5550422_2.fastq.gz -> /datos/illumina/URO5550422_2.fastq.gz
+
+=== Archivos Nanopore ===
+lrwxrwxrwx URO5550422_1.fastq.gz -> /datos/nanopore/URO5550422_1.fastq.gz
+```
+
+---
+
+## Fase 2: Control de Calidad (QC)
+
+### 2.1 QC de Lecturas Illumina
+
+#### Script Automatizado
+
+```bash
+# Activar ambiente
+conda activate bact_main
+
+# Ejecutar QC de Illumina
+bash scripts/01_qc_illumina.sh
+
+# Tiempo estimado: 15-30 minutos
+```
+
+#### Comandos Detallados (Paso a Paso)
+
+```bash
+conda activate bact_main
+
+# Crear directorios
+mkdir -p 02_qc/01_illumina_raw 02_qc/02_illumina_trimmed
+
+# Variables
+SAMPLE="URO5550422"
+R1="00_raw_data/illumina/${SAMPLE}_1.fastq.gz"
+R2="00_raw_data/illumina/${SAMPLE}_2.fastq.gz"
+THREADS=8
+
+echo "========================================"
+echo "QC Illumina - Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Paso 1: FastQC en datos crudos
+echo "[1/3] FastQC en datos crudos..."
+fastqc ${R1} ${R2} \
+  -o 02_qc/01_illumina_raw/ \
+  -t ${THREADS}
+
+# Paso 2: Limpieza y recorte con fastp
+echo "[2/3] Limpieza con fastp..."
+fastp \
+  -i ${R1} \
+  -I ${R2} \
+  -o 02_qc/02_illumina_trimmed/${SAMPLE}_R1_trimmed.fastq.gz \
+  -O 02_qc/02_illumina_trimmed/${SAMPLE}_R2_trimmed.fastq.gz \
+  --detect_adapter_for_pe \
+  --cut_front --cut_tail \
+  --cut_window_size 4 \
+  --cut_mean_quality 20 \
+  --trim_poly_g \
+  --qualified_quality_phred 20 \
+  --unqualified_percent_limit 40 \
+  --n_base_limit 5 \
+  --length_required 50 \
+  --thread ${THREADS} \
+  --html 02_qc/02_illumina_trimmed/${SAMPLE}_fastp_report.html \
+  --json 02_qc/02_illumina_trimmed/${SAMPLE}_fastp_report.json
+
+# Paso 3: FastQC en datos limpios
+echo "[3/3] FastQC en datos trimmed..."
+fastqc 02_qc/02_illumina_trimmed/*_trimmed.fastq.gz \
+  -o 02_qc/02_illumina_trimmed/ \
+  -t ${THREADS}
+
+echo "✓ QC Illumina completado"
+echo "  Reportes en: 02_qc/01_illumina_raw/ y 02_qc/02_illumina_trimmed/"
+```
+
+#### Interpretar Resultados de fastp
+
+```bash
+# Ver resumen de fastp
+cat 02_qc/02_illumina_trimmed/${SAMPLE}_fastp_report.json | grep -A 5 "summary"
+
+# O abrir reporte HTML
+firefox 02_qc/02_illumina_trimmed/${SAMPLE}_fastp_report.html
+```
+
+**📊 Métricas Clave a Verificar**:
+
+| Métrica | Valor Esperado | Qué Indica |
+|---------|----------------|------------|
+| Total reads | >1M | Profundidad de secuenciación |
+| % Reads passed filter | >95% | Calidad general buena |
+| % Bases ≥Q30 | >90% | Alta calidad de bases |
+| GC content | 55-58% | Normal para K. pneumoniae |
+| % Duplicación | <20% | Buena complejidad de librería |
+| % Adaptadores | <5% after trim | Limpieza efectiva |
+
+**🚨 Señales de Alerta**:
+- ❌ Q30 <80%: Secuenciación de baja calidad
+- ❌ Duplicación >40%: Posible sobre-amplificación
+- ❌ Reads passed filter <90%: Problemas con la librería
+- ❌ GC content <50% o >65%: Posible contaminación
+
+---
+
+### 2.2 QC de Lecturas Nanopore
+
+#### Script Automatizado
+
+```bash
+# Activar ambiente
+conda activate bact_main
+
+# Ejecutar QC de Nanopore
+bash scripts/02_qc_nanopore.sh
+
+# Tiempo estimado: 10-20 minutos
+```
+
+#### Comandos Detallados
+
+```bash
+conda activate bact_main
+
+# Crear directorios
+mkdir -p 02_qc/03_nanopore_raw 02_qc/04_nanopore_filtered
+
+# Variables
+SAMPLE="URO5550422"
+NANOPORE="00_raw_data/nanopore/${SAMPLE}_1.fastq.gz"
+THREADS=8
+
+echo "========================================"
+echo "QC Nanopore - Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Paso 1: NanoPlot en datos crudos
+echo "[1/3] NanoPlot en datos crudos..."
+NanoPlot \
+  --fastq ${NANOPORE} \
+  -o 02_qc/03_nanopore_raw/ \
+  -t ${THREADS} \
+  --plots kde dot \
+  --N50 \
+  --title "${SAMPLE} - Raw Nanopore Data"
+
+# Paso 2: Filtrado con Filtlong
+echo "[2/3] Filtrado con Filtlong..."
+filtlong \
+  --min_length 1000 \
+  --keep_percent 90 \
+  --target_bases 500000000 \
+  ${NANOPORE} | \
+  pigz -p ${THREADS} > 02_qc/04_nanopore_filtered/${SAMPLE}_ont_filtered.fastq.gz
+
+# Paso 3: NanoPlot en datos filtrados
+echo "[3/3] NanoPlot en datos filtrados..."
+NanoPlot \
+  --fastq 02_qc/04_nanopore_filtered/${SAMPLE}_ont_filtered.fastq.gz \
+  -o 02_qc/04_nanopore_filtered/ \
+  -t ${THREADS} \
+  --plots kde dot \
+  --N50 \
+  --title "${SAMPLE} - Filtered Nanopore Data"
+
+echo "✓ QC Nanopore completado"
+echo "  Reportes en: 02_qc/03_nanopore_raw/ y 02_qc/04_nanopore_filtered/"
+```
+
+#### Interpretar Resultados de NanoPlot
+
+```bash
+# Ver estadísticas principales
+cat 02_qc/03_nanopore_raw/NanoStats.txt
+cat 02_qc/04_nanopore_filtered/NanoStats.txt
+
+# Comparar antes/después del filtrado
+echo "=== COMPARACIÓN RAW vs FILTERED ==="
+echo -n "Raw - Total bases: "
+grep "Total bases:" 02_qc/03_nanopore_raw/NanoStats.txt | awk '{print $3}'
+
+echo -n "Filtered - Total bases: "
+grep "Total bases:" 02_qc/04_nanopore_filtered/NanoStats.txt | awk '{print $3}'
+
+echo -n "Raw - Mean read length: "
+grep "Mean read length:" 02_qc/03_nanopore_raw/NanoStats.txt | awk '{print $4}'
+
+echo -n "Filtered - Mean read length: "
+grep "Mean read length:" 02_qc/04_nanopore_filtered/NanoStats.txt | awk '{print $4}'
+```
+
+**📊 Métricas Clave Nanopore**:
+
+| Métrica | Raw (Esperado) | Filtered (Esperado) | Qué Indica |
+|---------|----------------|---------------------|------------|
+| Total reads | 50K-200K | 45K-180K | Rendimiento del flowcell |
+| Mean read length | 3-10 kb | 4-12 kb | Calidad de extracción DNA |
+| Read length N50 | 5-15 kb | 6-18 kb | Distribución de tamaños |
+| Mean quality score | 10-13 | 11-14 | Calidad general de basecalling |
+| Total bases | 300M-1G | 250M-900M | Cobertura esperada |
+
+**🎯 Objetivos de Filtrado**:
+- ✅ Eliminar reads <1 kb (fragmentos cortos)
+- ✅ Mantener 90% de los datos de mejor calidad
+- ✅ Mejorar N50 en 10-20%
+- ✅ Alcanzar cobertura >30x para genoma de ~5.7 Mb
+
+**Cálculo de Cobertura**:
+```bash
+# Cobertura = Total bases / Tamaño genoma
+# Ejemplo: 500 Mb / 5.7 Mb = ~88x cobertura
+TOTAL_BASES=$(grep "Total bases:" 02_qc/04_nanopore_filtered/NanoStats.txt | awk '{print $3}' | sed 's/,//g')
+GENOME_SIZE=5682322
+COVERAGE=$(echo "scale=1; $TOTAL_BASES / $GENOME_SIZE" | bc)
+echo "Cobertura estimada: ${COVERAGE}x"
+```
+
+---
+
+### 2.3 Reporte Consolidado con MultiQC
+
+```bash
+conda activate bact_main
+
+mkdir -p 02_qc/05_multiqc
+
+SAMPLE="URO5550422"
+
+# Generar reporte integrado de todos los análisis QC
+multiqc 02_qc/ \
+  -o 02_qc/05_multiqc/ \
+  --filename ${SAMPLE}_multiqc_report \
+  --title "QC Report - ${SAMPLE}" \
+  --comment "Klebsiella pneumoniae - Illumina + Nanopore" \
+  --force
+
+echo "✓ Reporte MultiQC generado"
+echo "  Abrir: firefox 02_qc/05_multiqc/${SAMPLE}_multiqc_report.html"
+```
+
+**📊 Reporte MultiQC Incluye**:
+- ✅ FastQC de datos Illumina (raw y trimmed)
+- ✅ Estadísticas de fastp
+- ✅ Distribuciones de calidad y longitud
+- ✅ Contenido GC
+- ✅ Niveles de duplicación
+- ✅ Presencia de adaptadores
+
+---
+
+## Fase 3: Estrategias de Ensamblaje
+
+### 3.1 Ensamblaje Solo Illumina (SPAdes)
+
+#### Script Automatizado
+
+```bash
+conda activate bact_main
+
+# Ejecutar ensamblaje Illumina
+bash scripts/03_assembly_illumina.sh
+
+# Tiempo estimado: 1-3 horas
+```
+
+#### Comandos Detallados
+
+```bash
+conda activate bact_main
+
+mkdir -p 03_assembly/01_illumina_only
+
+SAMPLE="URO5550422"
+R1_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R1_trimmed.fastq.gz"
+R2_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R2_trimmed.fastq.gz"
+THREADS=8
+MEMORY=16
+
+echo "========================================"
+echo "Ensamblaje Illumina (SPAdes)"
+echo "Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Ensamblaje con SPAdes
+spades.py \
+  -1 ${R1_TRIM} \
+  -2 ${R2_TRIM} \
+  -o 03_assembly/01_illumina_only/ \
+  --isolate \
+  --careful \
+  -t ${THREADS} \
+  -m ${MEMORY} \
+  --cov-cutoff auto
+
+# Copiar contigs finales
+cp 03_assembly/01_illumina_only/contigs.fasta \
+   03_assembly/01_illumina_only/assembly_illumina.fasta
+
+# Estadísticas básicas del ensamblaje
+echo ""
+echo "=== ESTADÍSTICAS DEL ENSAMBLAJE ==="
+echo -n "Número de contigs: "
+grep -c ">" 03_assembly/01_illumina_only/assembly_illumina.fasta
+
+echo -n "Contig más largo: "
+cat 03_assembly/01_illumina_only/assembly_illumina.fasta | \
+  awk '/^>/ {if (seqlen){print seqlen}; seqlen=0; next} {seqlen += length($0)} END {print seqlen}' | \
+  sort -rn | head -1
+
+echo -n "Tamaño total: "
+cat 03_assembly/01_illumina_only/assembly_illumina.fasta | \
+  grep -v ">" | tr -d '\n' | wc -c
+
+echo ""
+echo "✓ Ensamblaje Illumina completado"
+echo "  Fin: $(date)"
+```
+
+**⚙️ Parámetros de SPAdes Explicados**:
+- `--isolate`: Optimizado para genomas bacterianos aislados
+- `--careful`: Minimiza mismatches y pequeños indels
+- `--cov-cutoff auto`: Elimina contigs de baja cobertura automáticamente
+- `-t 8`: Usar 8 threads
+- `-m 16`: Límite de memoria 16 GB
+
+**📊 Resultados Esperados para K. pneumoniae**:
+
+| Métrica | Valor Esperado | Interpretación |
+|---------|----------------|----------------|
+| Número de contigs | 50-150 | Aceptable para Illumina |
+| Contig más largo | 200-800 kb | Buena continuidad |
+| Tamaño total | 5.3-5.9 Mb | Cercano al genoma de referencia |
+| N50 | 100-300 kb | Calidad buena |
+| L50 | 10-30 | Ensamblaje fragmentado pero útil |
+
+---
+
+### 3.2 Ensamblaje Solo Nanopore (Flye)
+
+#### Script Automatizado
+
+```bash
+conda activate bact_main
+
+# Ejecutar ensamblaje Nanopore
+bash scripts/04_assembly_nanopore.sh
+
+# Tiempo estimado: 30-90 minutos
+```
+
+#### Comandos Detallados
+
+```bash
+conda activate bact_main
+
+mkdir -p 03_assembly/02_nanopore_only
+
+SAMPLE="URO5550422"
+NANOPORE_FILT="02_qc/04_nanopore_filtered/${SAMPLE}_ont_filtered.fastq.gz"
+THREADS=8
+
+echo "========================================"
+echo "Ensamblaje Nanopore (Flye)"
+echo "Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Ensamblaje con Flye
+flye \
+  --nano-raw ${NANOPORE_FILT} \
+  --out-dir 03_assembly/02_nanopore_only/ \
+  --genome-size 5.7m \
+  --threads ${THREADS} \
+  --iterations 3 \
+  --meta
+
+# Copiar ensamblaje final
+cp 03_assembly/02_nanopore_only/assembly.fasta \
+   03_assembly/02_nanopore_only/assembly_nanopore.fasta
+
+# Estadísticas del ensamblaje
+echo ""
+echo "=== ESTADÍSTICAS DEL ENSAMBLAJE ==="
+cat 03_assembly/02_nanopore_only/assembly_info.txt
+
+echo ""
+echo "✓ Ensamblaje Nanopore completado"
+echo "  Fin: $(date)"
+```
+
+**⚙️ Parámetros de Flye Explicados**:
+- `--nano-raw`: Lecturas Nanopore sin corregir
+- `--genome-size 5.7m`: Tamaño esperado (5.7 Mb para K. pneumoniae)
+- `--iterations 3`: Pulir 3 veces (mejora calidad)
+- `--meta`: Modo metagenoma (útil para detectar múltiples replicons)
+
+**📊 Resultados Esperados**:
+
+| Métrica | Valor Esperado | Interpretación |
+|---------|----------------|----------------|
+| Número de contigs | 2-10 | Muy buena continuidad |
+| Contig más largo | 5-5.5 Mb | Probablemente cromosoma completo |
+| Tamaño total | 5.5-6.0 Mb | Incluye cromosoma + plásmidos |
+| Contigs circulares | 1-7 | Cromosoma + plásmidos cerrados |
+
+**🔍 Análisis del archivo assembly_info.txt**:
+
+```bash
+# Ver información de circularidad
+echo "=== CONTIGS CIRCULARES ==="
+grep "circular=Y" 03_assembly/02_nanopore_only/assembly_info.txt
+
+# Identificar posible cromosoma (contig más largo)
+echo "=== POSIBLE CROMOSOMA ==="
+awk '$2 > 5000000' 03_assembly/02_nanopore_only/assembly_info.txt
+
+# Identificar posibles plásmidos (contigs circulares pequeños)
+echo "=== POSIBLES PLÁSMIDOS ==="
+awk '$2 < 200000 && $4 == "Y"' 03_assembly/02_nanopore_only/assembly_info.txt
+```
+
+---
+
+### 3.3 Ensamblaje Híbrido (Unicycler)
+
+#### Script Automatizado
+
+```bash
+conda activate bact_main
+
+# Ejecutar ensamblaje híbrido
+bash scripts/05_assembly_hybrid.sh
+
+# Tiempo estimado: 3-6 horas
+```
+
+#### Comandos Detallados
+
+```bash
+conda activate bact_main
+
+mkdir -p 03_assembly/03_hybrid
+
+SAMPLE="URO5550422"
+R1_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R1_trimmed.fastq.gz"
+R2_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R2_trimmed.fastq.gz"
+NANOPORE_FILT="02_qc/04_nanopore_filtered/${SAMPLE}_ont_filtered.fastq.gz"
+THREADS=8
+
+echo "========================================"
+echo "Ensamblaje Híbrido (Unicycler)"
+echo "Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Ensamblaje híbrido con Unicycler
+unicycler \
+  -1 ${R1_TRIM} \
+  -2 ${R2_TRIM} \
+  -l ${NANOPORE_FILT} \
+  -o 03_assembly/03_hybrid/ \
+  --threads ${THREADS} \
+  --mode normal \
+  --min_fasta_length 200
+
+# Copiar ensamblaje final
+cp 03_assembly/03_hybrid/assembly.fasta \
+   03_assembly/03_hybrid/assembly_hybrid.fasta
+
+# Estadísticas básicas
+echo ""
+echo "=== ESTADÍSTICAS DEL ENSAMBLAJE ==="
+grep ">" 03_assembly/03_hybrid/assembly_hybrid.fasta | \
+  sed 's/.*length=\([0-9]*\).*/\1/' | \
+  awk '{
+    count++; 
+    total+=$1; 
+    if($1>max) max=$1;
+    lengths[count]=$1
+  } 
+  END {
+    print "Número de contigs:", count;
+    print "Tamaño total:", total, "bp";
+    print "Contig más largo:", max, "bp";
+    print "Tamaño promedio:", int(total/count), "bp"
+  }'
+
+echo ""
+echo "✓ Ensamblaje Híbrido completado"
+echo "  Fin: $(date)"
+```
+
+**⚙️ Parámetros de Unicycler Explicados**:
+- `--mode normal`: Balance entre velocidad y calidad
+- `--min_fasta_length 200`: Descartar contigs <200 bp
+- Unicycler usa Illumina para corregir errores de Nanopore
+
+**📊 Resultados Esperados (MEJOR CALIDAD)**:
+
+| Métrica | Valor Esperado | Por Qué es Mejor |
+|---------|----------------|------------------|
+| Número de contigs | 1-10 | Continuidad de Nanopore |
+| Contig más largo | 5.3-5.4 Mb | Cromosoma completo cerrado |
+| Tamaño total | 5.6-5.8 Mb | Genoma completo + plásmidos |
+| Precisión | >99.99% | Corrección con Illumina |
+| Contigs circulares | 3-7 | Cromosoma + plásmidos principales |
+
+**🎯 Ventajas del Ensamblaje Híbrido**:
+- ✅ **Continuidad**: Lecturas largas resuelven repeticiones
+- ✅ **Precisión**: Illumina corrige errores de Nanopore
+- ✅ **Plásmidos cerrados**: Mejor para caracterizar elementos móviles
+- ✅ **Genoma completo**: Mayor probabilidad de cromosoma circular cerrado
+
+---
+
+### 3.4 Evaluación Comparativa de Ensamblajes (QUAST)
+
+```bash
+conda activate bact_main
+
+mkdir -p 03_assembly/04_quast_evaluation
+
+SAMPLE="URO5550422"
+REFERENCE="01_reference/reference.fasta"
+
+echo "========================================"
+echo "Evaluación de Ensamblajes (QUAST)"
+echo "========================================"
+
+# Evaluar los tres ensamblajes contra referencia
+quast.py \
+  03_assembly/01_illumina_only/assembly_illumina.fasta \
+  03_assembly/02_nanopore_only/assembly_nanopore.fasta \
+  03_assembly/03_hybrid/assembly_hybrid.fasta \
+  -r ${REFERENCE} \
+  -o 03_assembly/04_quast_evaluation/ \
+  --threads 8 \
+  --labels "Illumina,Nanopore,Hybrid" \
+  --glimmer \
+  --min-contig 200
+
+echo ""
+echo "✓ Evaluación QUAST completada"
+echo "  Reporte: 03_assembly/04_quast_evaluation/report.html"
+echo ""
+
+# Abrir reporte
+firefox 03_assembly/04_quast_evaluation/report.html &
+
+# Ver resumen en terminal
+cat 03_assembly/04_quast_evaluation/report.txt
+```
+
+**📊 Tabla Comparativa Ejemplo**:
+
+```
+Métrica                    | Illumina  | Nanopore | Híbrido  | Mejor
+---------------------------|-----------|----------|----------|-------
+# contigs (>= 0 bp)       | 98        | 7        | 4        | Híbrido
+# contigs (>= 1000 bp)    | 87        | 7        | 4        | Híbrido
+Total length (>= 0 bp)    | 5,612,345 | 5,723,892| 5,689,234| Nanopore
+Largest contig            | 387,234   | 5,334,567| 5,335,123| Híbrido
+N50                       | 145,678   | 5,334,567| 5,335,123| Híbrido
+L50                       | 12        | 1        | 1        | Híbrido
+GC (%)                    | 57.12     | 57.08    | 57.10    | -
+# genes                   | 5,234     | 5,412    | 5,398    | Nanopore
+Genome fraction (%)       | 98.76     | 99.82    | 99.95    | Híbrido
+Mismatches per 100 kbp    | 12.3      | 145.7    | 8.9      | Híbrido
+Indels per 100 kbp        | 5.6       | 387.2    | 4.1      | Híbrido
+```
+
+**🏆 Selección del Mejor Ensamblaje**:
+
+```bash
+# Criterio de decisión automatizado
+echo "=== CRITERIOS DE SELECCIÓN ==="
+echo "1. Menor número de contigs: Híbrido/Nanopore"
+echo "2. Mayor N50: Híbrido/Nanopore"
+echo "3. Mejor cobertura del genoma: Híbrido"
+echo "4. Menor tasa de errores: Híbrido/Illumina"
+echo ""
+echo "🏆 RECOMENDACIÓN: Usar ensamblaje HÍBRIDO para análisis downstream"
+echo ""
+
+# Copiar mejor ensamblaje para análisis posteriores
+cp 03_assembly/03_hybrid/assembly_hybrid.fasta 03_assembly/BEST_ASSEMBLY.fasta
+echo "✓ Mejor ensamblaje copiado a: 03_assembly/BEST_ASSEMBLY.fasta"
+```
+
+---
+
+## Fase 4: Mapeo y Análisis de Variantes
+
+⚠️ **IMPORTANTE para K. pneumoniae**: El genoma de referencia contiene 7 secuencias (1 cromosoma + 6 plásmidos). El mapeo debe hacerse contra el archivo completo.
+
+### 4.1 Indexar Genoma de Referencia
+
+```bash
+conda activate bact_main
+
+REFERENCE="01_reference/reference.fasta"
+
+echo "========================================"
+echo "Indexando Genoma de Referencia"
+echo "========================================"
+
+# Índice para BWA (Illumina)
+echo "[1/3] Creando índice BWA..."
+bwa index ${REFERENCE}
+
+# Índice para Samtools
+echo "[2/3] Creando índice FAI..."
+samtools faidx ${REFERENCE}
+
+# Índice para Minimap2 (Nanopore) - opcional, se puede hacer on-the-fly
+echo "[3/3] Creando índice Minimap2..."
+minimap2 -d ${REFERENCE}.mmi ${REFERENCE}
+
+echo "✓ Índices creados"
+ls -lh 01_reference/
+```
+
+---
+
+### 4.2 Mapeo de Lecturas Illumina
+
+```bash
+conda activate bact_main
+
+mkdir -p 04_mapping/01_illumina
+
+SAMPLE="URO5550422"
+REFERENCE="01_reference/reference.fasta"
+R1_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R1_trimmed.fastq.gz"
+R2_TRIM="02_qc/02_illumina_trimmed/${SAMPLE}_R2_trimmed.fastq.gz"
+THREADS=8
+
+echo "========================================"
+echo "Mapeo Illumina - Muestra: ${SAMPLE}"
+echo "Inicio: $(date)"
+echo "========================================"
+
+# Mapeo con BWA-MEM
+echo "[1/4] Mapeo con BWA-MEM..."
+bwa mem -t ${THREADS} \
+  -R "@RG\tID:${SAMPLE}\tSM:${SAMPLE}\tPL:ILLUMINA" \
+  ${REFERENCE} \
+  ${R1_TRIM} \
+  ${R2_TRIM} | \
+  samtools view -Sb - | \
+  samtools sort -@ ${THREADS} -o 04_mapping/01_illumina/aligned_sorted.bam
+
+# Indexar BAM
+echo "[2/4] Indexando BAM..."
+samtools index 04_mapping/01_illumina/aligned_sorted.bam
+
+# Estadísticas de mapeo
+echo "[3/4] Calculando estadísticas..."
+samtools flagstat 04_mapping/01_illumina/aligned_sorted.bam > \
+  04_mapping/01_illumina/flagstat.txt
+
+samtools coverage 04_mapping/01_illumina/aligned_sorted.bam > \
+  04_mapping/01_illumina/coverage.txt
+
+samtools depth 04_mapping/01_illumina/aligned_sorted.bam | \
+  awk '{sum+=$3; count++} END {print "Mean Depth:", sum/count}' > \
+  04_mapping/01_illumina/mean_depth.txt
+
+# Análisis por secuencia (cromosoma y plásmidos)
+echo "[4/4] Análisis de cobertura por secuencia..."
+bash scripts/utils/analyze_coverage_per_sequence.sh \
+  04_mapping/01_illumina/aligned_sorted.bam \
+  04_mapping/04_coverage_analysis/illumina
+
+echo "✓ Mapeo
