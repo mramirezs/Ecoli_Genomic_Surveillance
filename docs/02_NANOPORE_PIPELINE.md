@@ -958,6 +958,343 @@ echo "========================================"
 
 # Crear directorio
 mkdir -p 03_assembly/02_nanopore_only/circular_sequences
+mkdir -p 03_assembly/02_nanopore_only/classified
+
+ASSEMBLY_POLISHED="03_assembly/02_nanopore_only/${SAMPLE}_nanopore_polished.fasta"
+samtools faidx ${ASSEMBLY_POLISHED}
+
+# Extraer secuencias circulares
+while read -r contig_name length cov circ rest; do
+    samtools faidx ${ASSEMBLY_POLISHED} ${contig_name} > \
+      03_assembly/02_nanopore_only/circular_sequences/${contig_name}.fasta
+    
+    # Clasificar
+    if [ $length -gt 4000000 ]; then
+        cp 03_assembly/02_nanopore_only/circular_sequences/${contig_name}.fasta \
+           03_assembly/02_nanopore_only/classified/chromosome.fasta
+    else
+        cp 03_assembly/02_nanopore_only/circular_sequences/${contig_name}.fasta \
+           03_assembly/02_nanopore_only/classified/plasmid_${contig_name}.fasta
+    fi
+done < 03_assembly/02_nanopore_only/circular_elements.txt
+
+echo "✓ Elementos circulares extraídos y clasificados"
+
+###############################
+# RESUMEN FINAL
+###############################
+echo ""
+echo "========================================"
+echo "✓ Pipeline Nanopore Completado"
+echo "Muestra: ${SAMPLE}"
+echo "Fin: $(date)"
+echo "========================================"
+echo ""
+echo "Archivos importantes:"
+echo "  QC: 02_qc/04_nanopore_filtered/NanoPlot-report.html"
+echo "  Ensamblaje: 03_assembly/02_nanopore_only/${SAMPLE}_nanopore_polished.fasta"
+echo "  QUAST: 03_assembly/04_quast_evaluation/report.html"
+echo "  BAM: 04_mapping/02_nanopore/${SAMPLE}_sorted.bam"
+echo "  Cromosoma: 03_assembly/02_nanopore_only/classified/chromosome.fasta"
+echo "  Plásmidos: 03_assembly/02_nanopore_only/classified/plasmid_*.fasta"
+echo ""
+
+# Generar resumen
+bash scripts/generate_summary_nanopore.sh ${SAMPLE}
+
+EOF
+
+chmod +x scripts/run_nanopore_pipeline.sh
+```
+
+### Uso del Script Automatizado
+
+```bash
+# Ejecutar pipeline completo
+bash scripts/run_nanopore_pipeline.sh URO5550422
+
+# Tiempo estimado: 2-4 horas
+# Monitorear progreso en terminal
+```
+
+---
+
+## 📝 Checklist Final
+
+Antes de continuar con análisis downstream, verifica:
+
+- [ ] ✅ NanoPlot muestra lecturas con N50 >5 kb
+- [ ] ✅ Cobertura estimada >50x
+- [ ] ✅ Ensamblaje tiene <15 contigs
+- [ ] ✅ Cromosoma está cerrado (circular)
+- [ ] ✅ N50 del ensamblaje >1 Mb
+- [ ] ✅ L50 ≤5
+- [ ] ✅ Plásmidos están cerrados
+- [ ] ✅ % reads mapeados >85%
+- [ ] ✅ Polishing redujo tasa de indels
+
+---
+
+## 🎓 Comparación: Nanopore vs Illumina
+
+### Ventajas de Nanopore
+
+| Aspecto | Nanopore | Illumina |
+|---------|----------|----------|
+| **Continuidad** | ⭐⭐⭐⭐⭐ (N50 >5 Mb) | ⭐⭐ (N50 ~150 kb) |
+| **Número de contigs** | 2-10 | 50-200 |
+| **Cromosoma cerrado** | ✅ Sí | ❌ No |
+| **Plásmidos cerrados** | ✅ Sí | ❌ Difícil |
+| **Regiones repetitivas** | ✅ Resuelve | ❌ Problemático |
+| **Tiempo de análisis** | 2-4 horas | 3-5 horas |
+
+### Desventajas de Nanopore
+
+| Aspecto | Nanopore | Illumina |
+|---------|----------|----------|
+| **Precisión** | ⭐⭐⭐ (~98%) | ⭐⭐⭐⭐⭐ (>99.9%) |
+| **SNP calling** | Regular | Excelente |
+| **Tasa de indels** | 150-250/100kb | 5-10/100kb |
+| **Costo por base** | Medio-alto | Bajo |
+| **Cobertura necesaria** | 50-100x | 30-50x |
+
+### ✅ Cuándo Usar Cada Uno
+
+**Usa Nanopore si:**
+- ✅ Necesitas genoma completo cerrado
+- ✅ Quieres caracterizar plásmidos completos
+- ✅ Tienes regiones repetitivas difíciles
+- ✅ Necesitas tipificación de plásmidos
+
+**Usa Illumina si:**
+- ✅ Necesitas máxima precisión en SNPs
+- ✅ Tienes presupuesto limitado
+- ✅ Solo necesitas detección de genes AMR
+- ✅ Haces vigilancia epidemiológica básica
+
+**Usa HÍBRIDO (ambos) si:**
+- ⭐ **Mejor opción**: Combinas continuidad + precisión
+- ⭐ Necesitas publicar genomas de referencia
+- ⭐ Quieres caracterización completa y precisa
+
+---
+
+## 📚 Visualización con Bandage
+
+### Instalar Bandage (opcional)
+
+```bash
+# Ya está en ambiente bact_main
+conda activate bact_main
+Bandage --version
+```
+
+### Visualizar Grafo de Ensamblaje
+
+```bash
+# Abrir Bandage
+Bandage &
+
+# Luego en la interfaz:
+# File → Load graph → 03_assembly/02_nanopore_only/assembly_graph.gfa
+# Draw graph
+
+# Esto muestra:
+# - Contigs como nodos
+# - Conexiones entre contigs
+# - Elementos circulares (loops cerrados)
+# - Coberturas por color
+```
+
+**🎯 Qué buscar en Bandage:**
+- Loops cerrados grandes = cromosoma circular
+- Loops cerrados pequeños = plásmidos circulares
+- Nodos desconectados = contaminación o artefactos
+- Cobertura uniforme = ensamblaje confiable
+
+---
+
+## 🔬 Próximos Pasos
+
+### Continuar con Análisis Downstream
+
+Una vez completado el pipeline Nanopore:
+
+**→ [04_AMR_TYPING.md](04_AMR_TYPING.md)** - Detección de genes AMR y tipificación molecular
+
+Este incluye:
+- Anotación funcional (Prokka)
+- Detección de genes AMR (AMRFinderPlus, Abricate, RGI)
+- MLST typing
+- Detección de plásmidos
+- Factores de virulencia
+- Análisis específico de elementos circulares
+
+### O Considerar Pipeline Híbrido
+
+Si tienes acceso a datos Illumina adicionales:
+
+**→ [03_HYBRID_PIPELINE.md](03_HYBRID_PIPELINE.md)** - Pipeline híbrido
+
+Ventajas:
+- ✅ Continuidad de Nanopore
+- ✅ Precisión de Illumina
+- ✅ **Mejor calidad general**
+- ✅ SNPs confiables + estructura completa
+
+---
+
+## 📖 Referencias
+
+### Herramientas Utilizadas
+
+- **NanoPlot**: De Coster et al. (2018) - Bioinformatics
+- **Filtlong**: https://github.com/rrwick/Filtlong
+- **Flye**: Kolmogorov et al. (2019) - Nature Biotechnology
+- **Medaka**: Oxford Nanopore Technologies
+- **Minimap2**: Li (2018) - Bioinformatics
+- **Samtools**: Li et al. (2009) - Bioinformatics
+
+### Lecturas Recomendadas
+
+1. **Ensamblaje con lecturas largas:**
+   - Wick et al. (2017) "Completing bacterial genome assemblies with multiplex MinION sequencing"
+
+2. **Polishing de genomas Nanopore:**
+   - Wick & Holt (2021) "Polypolish: Short-read polishing of long-read bacterial genome assemblies"
+
+3. **Detección de plásmidos:**
+   - Arredondo-Alonso et al. (2017) "On the (im)possibility to reconstruct plasmids from whole-genome short-read sequencing data"
+
+---
+
+## 💡 Tips y Mejores Prácticas
+
+### 1. Cobertura Mínima
+
+```bash
+# Calcular cobertura necesaria
+# Para cerrar cromosoma: mínimo 50x
+# Para cerrar plásmidos de bajo copy: 80-100x
+
+GENOME_SIZE=5700000
+DESIRED_COVERAGE=80
+BASES_NEEDED=$((GENOME_SIZE * DESIRED_COVERAGE))
+
+echo "Bases necesarias para ${DESIRED_COVERAGE}x: $BASES_NEEDED"
+# ~456 Mb para 80x de un genoma de 5.7 Mb
+```
+
+### 2. Calidad de Reads
+
+```bash
+# Preferir:
+# - Basecalling "high accuracy" (SUP model)
+# - N50 de reads >10 kb
+# - Quality score medio >12
+```
+
+### 3. Verificar Circularidad
+
+```bash
+# Un cromosoma circular debería:
+# 1. Tener cobertura uniforme en extremos
+# 2. Reads que mapeen circulando el contig
+# 3. Assembly graph mostrar loop cerrado
+
+# Verificar visualmente con IGV o Bandage
+```
+
+### 4. Contaminación
+
+```bash
+# Identificar contaminación:
+# - Contigs con cobertura muy baja (<10x)
+# - Contigs pequeños no circulares
+# - GC% muy diferente al esperado
+
+# Buscar contaminación con BLAST
+blastn -query contig_sospechoso.fasta \
+       -db nt -remote -outfmt 6 -max_target_seqs 5
+```
+
+### 5. Optimizar Filtlong
+
+```bash
+# Para genomas de alto GC (>60%):
+filtlong --min_mean_q 90 ...
+
+# Para maximizar N50:
+filtlong --min_length 2000 --keep_percent 85 ...
+
+# Para mantener más datos:
+filtlong --keep_percent 95 --target_bases 600000000 ...
+```
+
+---
+
+## 🆘 Obtener Ayuda
+
+### Recursos Online
+
+- **Flye GitHub**: https://github.com/fenderglass/Flye/issues
+- **Medaka GitHub**: https://github.com/nanoporetech/medaka
+- **ONT Community**: https://community.nanoporetech.com/
+- **Biostars**: https://www.biostars.org/ (tag: nanopore)
+
+### Información de Debugging
+
+Cuando reportes problemas, incluye:
+
+```bash
+# Información del sistema
+cat > debug_info.txt << EOF
+# Sistema
+$(uname -a)
+
+# Versiones
+Flye: $(flye --version)
+Medaka: $(medaka --version)
+Minimap2: $(minimap2 --version)
+
+# Datos
+$(grep "Total bases:" 02_qc/04_nanopore_filtered/NanoStats.txt)
+$(grep "Read length N50:" 02_qc/04_nanopore_filtered/NanoStats.txt)
+
+# Error
+$(tail -50 03_assembly/02_nanopore_only/flye.log)
+EOF
+```
+
+---
+
+<div align="center">
+
+**✅ Pipeline Nanopore Completado**
+
+---
+
+**Resumen de Resultados:**
+- Genomas altamente contiguos (N50 >5 Mb)
+- Cromosoma y plásmidos cerrados
+- Estructura genómica completa
+- Listo para caracterización AMR
+
+---
+
+### Navegación
+
+[⬅️ Pipeline Illumina](01_ILLUMINA_PIPELINE.md) | [🏠 Índice Principal](../README.md) | [➡️ Pipeline Híbrido](03_HYBRID_PIPELINE.md)
+
+**Análisis Downstream →**  
+[🛡️ Detección AMR y Tipificación](04_AMR_TYPING.md)
+
+---
+
+*Última actualización: Enero 2025*  
+*Versión: 1.0*
+
+</div>
 
 # Archivo de ensamblaje
 ASSEMBLY="03_assembly/02_nanopore_only/${SAMPLE}_nanopore_polished.fasta"
