@@ -33,118 +33,94 @@ Además incluye análisis exhaustivo de **resistencia antimicrobiana (AMR)**, an
 
 ---
 
+## ⚡ Instalación Rápida (3 Pasos)
+
+### Paso 1: Configurar Estructura del Proyecto
+
+```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/Bacterial_Genomics_Pipeline.git
+cd Bacterial_Genomics_Pipeline
+
+# Ejecutar configuración automática
+bash setup_project_structure.sh
+
+# O personalizar nombre del proyecto
+bash setup_project_structure.sh mi_proyecto URO5550422
+```
+
+**Esto crea:**
+- ✅ Estructura completa de 14 directorios principales
+- ✅ 40+ subdirectorios organizados
+- ✅ Descarga genoma de referencia K. pneumoniae
+- ✅ Archivos de configuración y metadata
+- ✅ Scripts auxiliares
+
+📚 **Guía completa:** [SETUP_PROJECT_GUIDE.md](docs/SETUP_PROJECT_GUIDE.md)
+
+### Paso 2: Instalar Ambientes Conda
+
+```bash
+# Configurar ambientes especializados (~45 min)
+bash scripts/setup_environments.sh
+
+# Verificar instalación
+bash scripts/verify_installation.sh
+```
+
+📚 **Guía completa:** [00_INSTALLATION.md](docs/00_INSTALLATION.md)
+
+### Paso 3: Agregar tus Datos y Ejecutar
+
+```bash
+# Enlazar datos de secuenciación
+bash scripts/link_raw_data.sh /ruta/illumina /ruta/nanopore
+
+# Ejecutar pipeline según tus datos
+bash scripts/run_hybrid_pipeline.sh URO5550422
+
+# Ver resultados
+firefox 08_results/FINAL_REPORT.html
+```
+
+---
+
 ## 📚 Documentación Completa
 
-### 1️⃣ Instalación y Configuración (EMPEZAR AQUÍ)
-**📄 [00_INSTALLATION.md](docs/00_INSTALLATION.md)**
+### 🛠️ Configuración e Instalación
 
-- Instalación de Conda/Mamba
-- Creación de 3 ambientes especializados
-- Descarga de bases de datos (AMRFinder, CARD, etc.)
-- Verificación de instalación
-- Configuración del proyecto
+| Documento | Descripción | Tiempo |
+|-----------|-------------|--------|
+| **[SETUP_PROJECT_GUIDE.md](docs/SETUP_PROJECT_GUIDE.md)** | Configuración automática de estructura | ~5 min |
+| **[00_INSTALLATION.md](docs/00_INSTALLATION.md)** | Instalación completa de ambientes y bases de datos | ~45 min |
 
-**⏱️ Tiempo:** ~45 minutos | **Espacio:** ~50 GB | **Solo una vez**
+### 🔬 Pipelines de Análisis
 
----
+| Pipeline | Descripción | Cuándo Usar | Documentación |
+|----------|-------------|-------------|---------------|
+| **📘 Illumina** | Ensamblaje con lecturas cortas | Solo tienes datos Illumina | [01_ILLUMINA_PIPELINE.md](docs/01_ILLUMINA_PIPELINE.md) |
+| **📗 Nanopore** | Ensamblaje con lecturas largas | Solo tienes datos Nanopore | [02_NANOPORE_PIPELINE.md](docs/02_NANOPORE_PIPELINE.md) |
+| **📕 Híbrido** ⭐ | Combina Illumina + Nanopore | Tienes ambos tipos (mejor calidad) | [03_HYBRID_PIPELINE.md](docs/03_HYBRID_PIPELINE.md) |
 
-### 2️⃣ Pipelines de Ensamblaje
+### 🛡️ Análisis Downstream
 
-#### 📘 Pipeline Solo Illumina
-**📄 [01_ILLUMINA_PIPELINE.md](docs/01_ILLUMINA_PIPELINE.md)**
-
-**Ideal para:**
-- ✅ Detección precisa de SNPs/INDELs
-- ✅ Análisis de variantes de alta confianza
-- ✅ Cuando solo tienes datos Illumina
-
-**Incluye:**
-- Control de calidad con FastQC/fastp
-- Ensamblaje con SPAdes
-- Mapeo con BWA
-- Llamado de variantes con BCFtools
-
-**Limitaciones:**
-- ⚠️ Ensamblajes fragmentados (50-150 contigs)
-- ⚠️ Dificulta cierre de plásmidos
+| Documento | Descripción |
+|-----------|-------------|
+| **[04_AMR_TYPING.md](docs/04_AMR_TYPING.md)** | Detección AMR, anotación, MLST, plásmidos |
+| **[05_TROUBLESHOOTING.md](docs/05_TROUBLESHOOTING.md)** | Solución de problemas comunes |
 
 ---
 
-#### 📗 Pipeline Solo Nanopore
-**📄 [02_NANOPORE_PIPELINE.md](docs/02_NANOPORE_PIPELINE.md)**
+## 📊 ¿Qué Puedo Hacer con Este Pipeline?
 
-**Ideal para:**
-- ✅ Genomas altamente contiguos (2-10 contigs)
-- ✅ Cierre de cromosomas y plásmidos
-- ✅ Resolver regiones repetitivas
-- ✅ Cuando solo tienes datos Nanopore
-
-**Incluye:**
-- Control de calidad con NanoPlot
-- Filtrado con Filtlong
-- Ensamblaje con Flye
-- Mapeo con Minimap2
-- Polishing con Medaka
-
-**Limitaciones:**
-- ⚠️ Mayor tasa de errores (especialmente indels)
-- ⚠️ Menos preciso para SNP calling
-
----
-
-#### 📕 Pipeline Híbrido (Recomendado ⭐)
-**📄 [03_HYBRID_PIPELINE.md](docs/03_HYBRID_PIPELINE.md)**
-
-**Lo mejor de ambos mundos:**
-- ✅ Alta continuidad (Nanopore)
-- ✅ Alta precisión (Illumina)
-- ✅ Cromosomas y plásmidos cerrados
-- ✅ SNPs/INDELs confiables
-- ✅ **Mejor calidad general**
-
-**Incluye:**
-- QC de ambas tecnologías
-- Ensamblaje híbrido con Unicycler
-- Validación cruzada
-- Consenso de alta confianza
-
-**Requerimientos:**
-- 🔴 Datos de Illumina paired-end
-- 🔴 Datos de Nanopore long-reads
-- 🔴 Mayor tiempo de cómputo
-
----
-
-### 3️⃣ Análisis Downstream (Común para Todos)
-
-#### 🛡️ Resistencia Antimicrobiana y Tipificación
-**📄 [04_AMR_TYPING.md](docs/04_AMR_TYPING.md)**
-
-**Análisis incluidos:**
-- Detección de genes AMR (AMRFinderPlus, Abricate, RGI)
-- Anotación funcional (Prokka/Bakta)
-- MLST typing
-- Detección de plásmidos
-- Factores de virulencia
-- Reportes consolidados
-
-**Bases de datos:**
-- NCBI AMRFinder
-- CARD (Comprehensive Antibiotic Resistance Database)
-- ResFinder
-- VFDB (Virulence Factor Database)
-- PlasmidFinder
-
----
-
-### 4️⃣ Solución de Problemas
-**📄 [05_TROUBLESHOOTING.md](docs/05_TROUBLESHOOTING.md)**
-
-- Errores comunes de instalación
-- Problemas de memoria/disco
-- Calidad baja de datos
-- Fallos en ensamblaje
-- Conflictos de dependencias
+✅ **Ensamblar genomas bacterianos** de alta calidad  
+✅ **Identificar genes de resistencia** a antibióticos (AMR)  
+✅ **Detectar variantes genómicas** (SNPs, INDELs)  
+✅ **Anotar genes y funciones** biológicas  
+✅ **Comparar diferentes estrategias** de ensamblaje  
+✅ **Analizar cromosomas y plásmidos** por separado  
+✅ **Tipificar cepas** (MLST, detección de plásmidos)  
+✅ **Generar reportes automatizados** para vigilancia epidemiológica  
 
 ---
 
@@ -157,6 +133,51 @@ Todos los pipelines están documentados usando un caso real:
 - **Referencia:** K. pneumoniae HS11286 (GCF_000240185.1)
 - **Genoma:** 5.7 Mb (1 cromosoma + 6 plásmidos)
 - **Datos disponibles:** Illumina paired-end + Nanopore long-reads
+
+---
+
+## 📂 Estructura del Proyecto
+
+Después de ejecutar `setup_project_structure.sh`:
+
+```
+bacterial_genomics/
+├── 00_raw_data/          # Datos de secuenciación (FASTQ)
+│   ├── illumina/         # Lecturas paired-end
+│   └── nanopore/         # Lecturas largas
+├── 01_reference/         # Genoma de referencia
+├── 02_qc/                # Control de calidad
+├── 03_assembly/          # Ensamblajes (Illumina/Nanopore/Híbrido)
+├── 04_mapping/           # Mapeos y variantes
+├── 05_annotation/        # Anotación funcional
+├── 06_amr_screening/     # Genes de resistencia AMR
+├── 07_typing/            # Tipificación molecular (MLST, plásmidos)
+├── 08_results/           # Resultados finales y reportes
+├── databases/            # Bases de datos locales
+├── envs/                 # Ambientes conda (YAML)
+├── scripts/              # Scripts de automatización
+└── logs/                 # Logs de ejecución
+```
+
+---
+
+## 💻 Requisitos del Sistema
+
+### Hardware Recomendado
+
+| Componente | Mínimo | Recomendado | Óptimo |
+|------------|--------|-------------|--------|
+| **CPU** | 4 cores | 8 cores | 16+ cores |
+| **RAM** | 16 GB | 32 GB | 64+ GB |
+| **Almacenamiento** | 100 GB/muestra | 200 GB/muestra | SSD 500 GB |
+| **Red** | 10 Mbps | 100 Mbps | 1 Gbps |
+
+### Software
+
+- **Sistema Operativo**: Linux/Unix (Ubuntu 20.04+, CentOS 7+, Debian 10+)
+- **Conda/Mamba**: Para gestión de ambientes
+- **Git**: Para clonar repositorio
+- **Conexión a internet**: Para instalación inicial y descarga de bases de datos
 
 ---
 
@@ -176,109 +197,53 @@ Todos los pipelines están documentados usando un caso real:
 
 ---
 
-## 💻 Requisitos del Sistema
-
-### Hardware Mínimo
-- **CPU:** 4 cores
-- **RAM:** 16 GB
-- **Almacenamiento:** 100 GB por muestra
-- **Sistema:** Linux/Unix (Ubuntu 20.04+)
-
-### Hardware Recomendado
-- **CPU:** 8+ cores
-- **RAM:** 32+ GB
-- **Almacenamiento:** SSD con 200 GB por muestra
-- **Red:** Conexión estable para descargas
-
----
-
-## 📦 Instalación Rápida
-
-```bash
-# 1. Clonar repositorio
-git clone https://github.com/tu-usuario/Bacterial_Genomics_Pipeline.git
-cd Bacterial_Genomics_Pipeline
-
-# 2. Seguir guía de instalación
-# Ver: docs/00_INSTALLATION.md
-bash scripts/setup_environments.sh
-
-# 3. Verificar instalación
-bash scripts/verify_installation.sh
-
-# 4. Elegir tu pipeline según tus datos
-# - Solo Illumina: docs/01_ILLUMINA_PIPELINE.md
-# - Solo Nanopore: docs/02_NANOPORE_PIPELINE.md  
-# - Híbrido: docs/03_HYBRID_PIPELINE.md
-```
-
----
-
-## 🗂️ Estructura del Repositorio
-
-```
-Bacterial_Genomics_Pipeline/
-│
-├── README.md                      # Este archivo - índice principal
-│
-├── docs/                          # 📚 Documentación detallada
-│   ├── 00_INSTALLATION.md        # Instalación y setup
-│   ├── 01_ILLUMINA_PIPELINE.md   # Pipeline Illumina
-│   ├── 02_NANOPORE_PIPELINE.md   # Pipeline Nanopore
-│   ├── 03_HYBRID_PIPELINE.md     # Pipeline híbrido
-│   ├── 04_AMR_TYPING.md          # AMR y tipificación
-│   └── 05_TROUBLESHOOTING.md     # Solución de problemas
-│
-├── workflows/                     # 🔧 Scripts organizados por tecnología
-│   ├── illumina/
-│   │   ├── 01_qc.sh
-│   │   ├── 02_assembly.sh
-│   │   └── 03_mapping.sh
-│   ├── nanopore/
-│   │   ├── 01_qc.sh
-│   │   ├── 02_assembly.sh
-│   │   └── 03_mapping.sh
-│   ├── hybrid/
-│   │   ├── 01_qc.sh
-│   │   └── 02_assembly_hybrid.sh
-│   └── common/                    # Scripts compartidos
-│       ├── 04_annotation.sh
-│       ├── 05_amr_detection.sh
-│       └── 06_typing.sh
-│
-├── envs/                          # 🐍 Ambientes conda
-│   ├── bact_main.yml
-│   ├── bact_amr.yml
-│   └── bact_rgi.yml
-│
-├── scripts/                       # 🚀 Scripts de utilidades
-│   ├── setup_environments.sh
-│   ├── verify_installation.sh
-│   └── setup_project_structure.sh
-│
-└── test_data/                     # 🧪 Datos de prueba (pequeños)
-```
-
----
-
 ## 🔄 Flujo de Trabajo General
 
-```mermaid
-graph TD
-    A[Datos de Secuenciación] --> B{¿Qué tipo?}
-    
-    B -->|Solo Illumina| C[Pipeline Illumina]
-    B -->|Solo Nanopore| D[Pipeline Nanopore]
-    B -->|Ambos| E[Pipeline Híbrido ⭐]
-    
-    C --> F[Ensamblaje de Calidad]
-    D --> F
-    E --> F
-    
-    F --> G[Anotación Funcional]
-    G --> H[Detección AMR]
-    H --> I[Tipificación Molecular]
-    I --> J[Reportes y Visualización]
+```
+┌─────────────────────────────────────────────┐
+│  1. Configurar Estructura del Proyecto     │
+│     bash setup_project_structure.sh        │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  2. Instalar Ambientes Conda               │
+│     bash scripts/setup_environments.sh     │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  3. Agregar Datos de Secuenciación         │
+│     bash scripts/link_raw_data.sh          │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  4. Elegir Pipeline                        │
+│     • Illumina                             │
+│     • Nanopore                             │
+│     • Híbrido ⭐                           │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  5. Control de Calidad                     │
+│     FastQC, fastp, NanoPlot                │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  6. Ensamblaje                             │
+│     SPAdes / Flye / Unicycler              │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  7. Análisis Downstream                    │
+│     • Anotación (Prokka)                   │
+│     • Detección AMR                        │
+│     • MLST typing                          │
+│     • Plásmidos                            │
+└─────────────────┬───────────────────────────┘
+                  │
+┌─────────────────▼───────────────────────────┐
+│  8. Resultados y Reportes                  │
+│     Visualización, tablas, gráficos        │
+└─────────────────────────────────────────────┘
 ```
 
 ---
@@ -311,13 +276,16 @@ graph TD
 ## 🎓 Para Empezar
 
 ### Usuarios Nuevos
-1. **Leer:** [00_INSTALLATION.md](docs/00_INSTALLATION.md)
-2. **Instalar:** Ambientes conda (~45 min)
-3. **Elegir:** Tu pipeline según datos disponibles
-4. **Ejecutar:** Pipeline paso a paso
-5. **Analizar:** Resultados AMR y tipificación
+
+1. **Configurar estructura:** `bash setup_project_structure.sh`
+2. **Instalar ambientes:** Ver [00_INSTALLATION.md](docs/00_INSTALLATION.md)
+3. **Agregar datos:** `bash scripts/link_raw_data.sh`
+4. **Elegir pipeline:** Según datos disponibles
+5. **Ejecutar análisis:** Seguir guía del pipeline elegido
+6. **Analizar resultados:** Detección AMR y tipificación
 
 ### Usuarios Avanzados
+
 - Revisar documentación específica de tu pipeline
 - Modificar scripts según necesidades
 - Integrar con tus propios workflows
@@ -328,6 +296,7 @@ graph TD
 ## 📖 Referencias y Recursos
 
 ### Herramientas Principales
+
 - **FastQC/fastp:** Control de calidad
 - **SPAdes:** Ensamblaje Illumina
 - **Flye:** Ensamblaje Nanopore
@@ -337,13 +306,15 @@ graph TD
 - **AMRFinderPlus/CARD:** Detección AMR
 
 ### Bases de Datos
+
 - NCBI RefSeq
 - CARD (Comprehensive Antibiotic Resistance Database)
 - ResFinder
 - VFDB (Virulence Factors)
 - PubMLST
 
-### Publicaciones
+### Publicaciones Clave
+
 - Wick et al. (2017) - Unicycler: https://doi.org/10.1371/journal.pcbi.1005595
 - Kolmogorov et al. (2019) - Flye: https://doi.org/10.1038/s41587-019-0072-8
 - Bankevich et al. (2012) - SPAdes: https://doi.org/10.1089/cmb.2012.0021
@@ -392,7 +363,7 @@ Este pipeline integra herramientas desarrolladas por la comunidad científica y 
 
 **¿Listo para empezar?**
 
-[📚 Ir a Instalación](docs/00_INSTALLATION.md) | [📘 Pipeline Illumina](docs/01_ILLUMINA_PIPELINE.md) | [📗 Pipeline Nanopore](docs/02_NANOPORE_PIPELINE.md) | [📕 Pipeline Híbrido](docs/03_HYBRID_PIPELINE.md)
+[🛠️ Configurar Proyecto](docs/SETUP_PROJECT_GUIDE.md) | [📚 Instalación](docs/00_INSTALLATION.md) | [📘 Pipeline Illumina](docs/01_ILLUMINA_PIPELINE.md) | [📗 Pipeline Nanopore](docs/02_NANOPORE_PIPELINE.md) | [📕 Pipeline Híbrido](docs/03_HYBRID_PIPELINE.md)
 
 ---
 
